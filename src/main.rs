@@ -1,17 +1,15 @@
 #![allow(non_snake_case)]
 
-use std::collections::{VecDeque};
 use std::f64::consts::FRAC_1_SQRT_2;
 use std::time;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, World};
+use bevy_ecs::prelude::{Component, QueryState, World};
 use sdl2::render::WindowCanvas;
-use sdl2::{Sdl, TimerSubsystem};
+use sdl2::{Sdl};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
-use sdl2::keyboard::{KeyboardState, Scancode};
-use sdl2::mouse::MouseButton;
-use sdl2::rect::{Point, Rect};
+use sdl2::keyboard::{Scancode};
+use sdl2::rect::{ Rect};
 
 
 pub struct Renderer {
@@ -103,6 +101,21 @@ impl FpsCapDeltaTime {
 #[derive(Component)]
 struct Player;
 
+#[inline(always)]
+fn player_movement(world: &mut World, movement_update: &mut QueryState<(&mut TexRect, &mut Movement, &mut Acceleration)>, fps_dt: f64){
+    for (mut textect, mut movem, mut accs) in movement_update.iter_mut(world) {
+        movem.x += accs.x.clone() * fps_dt;
+        movem.y += accs.y.clone() * fps_dt;
+
+        // println!("{} {}", movem.x, movem.y);
+        textect.pos.set_x(movem.x as i32);
+        textect.pos.set_y(movem.y as i32);
+
+        accs.x = 0.0;
+        accs.y = 0.0;
+    }
+}
+
 #[derive(Component)]
 struct Movement {
     x: f64,
@@ -122,37 +135,37 @@ struct TexRect {
 }
 
 
+macro_rules! new_fish {
+    ($world:expr) => {
+    $world.spawn()
+         .insert(Player {})
+         .insert(Movement { x: SPAWN_X, y: SPAWN_Y })
+         .insert(Acceleration { x: 0.0, y: 0.0 })
+         .insert(TexRect { srs: Rect::new(0, 0, 24, 24), pos: Rect::new(0, 0, 24 * 3, 24 * 3) });
+    };
+}
+
 fn main() {
     let mut core = Renderer::new("a start pathing");
 
     let mut event_pump = core.sdl_context.event_pump().unwrap();
 
     let texture_creator = core.EKRAN.texture_creator();
-    let texture_sprite_sheet = texture_creator.load_texture("./assets/SS.png").unwrap();
+    let texture_sprite_sheet = texture_creator.load_texture("./assets/fish_idle_0.png").unwrap();
 
     const VEL: f64 = 10.0;
+    const SPAWN_X: f64 = 1280.0 / 2.0;
+    const SPAWN_Y: f64 = 720.0 / 2.0;
 
     let mut world = World::new();
 
 
-    let player = world.spawn()
-                      .insert(Player{})
-                      .insert(Movement{ x: 0.0, y: 0.0 })
-                      .insert(Acceleration{ x: 0.0, y: 0.0 })
-                      .insert(TexRect{ srs: Rect::new(0,24,24,24), pos: Rect::new(0,0,24*3,24*3) })
-                      .id();
-    let player2 = world.spawn()
-                       .insert(Player{})
-                       .insert(Movement{ x: 24.0*3.0, y: 0.0 })
-                       .insert(Acceleration{ x: 0.0, y: 0.0 })
-                       .insert(TexRect{ srs: Rect::new(0,24,24,24), pos: Rect::new(0,0,24*3,24*3) })
-                       .id();
-
+    new_fish!(world);
 
     let mut movement_update = world.query::<(&mut TexRect, &mut Movement, &mut Acceleration)>();
     let mut remove_ent = world.query::<Entity>();
     let mut evnent_movement = world.query::<(&mut Acceleration, &Player)>();
-    let mut render = world.query::<(&TexRect)>();
+    let mut render = world.query::<&TexRect>();
 
     let mut is_running = true;
 
@@ -165,22 +178,22 @@ fn main() {
         let keyb = event_pump.keyboard_state();
         for (mut acceleration, _) in evnent_movement.iter_mut(&mut world) {
             if keyb.is_scancode_pressed(Scancode::A) {
-                acceleration.x -= VEL ;
+                acceleration.x -= VEL;
             }
             if keyb.is_scancode_pressed(Scancode::D) {
-                acceleration.x += VEL ;
+                acceleration.x += VEL;
             }
             if keyb.is_scancode_pressed(Scancode::W) {
-                acceleration.y -= VEL ;
+                acceleration.y -= VEL;
             }
             if keyb.is_scancode_pressed(Scancode::S) {
-                acceleration.y += VEL ;
+                acceleration.y += VEL;
             }
 
-            // if acceleration.x != 0.0 && acceleration.y != 0.0 {
-            //     acceleration.x *= FRAC_1_SQRT_2;
-            //     acceleration.y *= FRAC_1_SQRT_2;
-            // }
+            if acceleration.x != 0.0 && acceleration.y != 0.0 {
+                acceleration.x *= FRAC_1_SQRT_2;
+                acceleration.y *= FRAC_1_SQRT_2;
+            }
         }
 
         for event in event_pump.poll_iter() {
@@ -189,19 +202,13 @@ fn main() {
                 Event::KeyDown { scancode, .. } => {
                     match scancode.unwrap() {
                         Scancode::Num1 | Scancode::O => {
-                            for ent in remove_ent.iter(&world){
+                            for ent in remove_ent.iter(&world) {
                                 world.despawn(ent);
                                 break;
                             }
-
                         }
                         Scancode::Num2 | Scancode::P => {
-                            world.spawn()
-                                 .insert(Player{})
-                                 .insert(Movement{ x: 0.0, y: 0.0 })
-                                 .insert(Acceleration{ x: 0.0, y: 0.0 })
-                                 .insert(TexRect{ srs: Rect::new(0,24,24,24), pos: Rect::new(0,0,24*3,24*3) })
-                                 .id();
+                            new_fish!(world);
                         }
                         _ => {}
                     }
@@ -210,21 +217,8 @@ fn main() {
             }
         }
 
+        player_movement(&mut world, &mut movement_update, core.fps_ctrl.dt * TARGET_FPS);
 
-
-
-
-        for (mut textect, mut movem, mut accs) in movement_update.iter_mut(&mut world) {
-            movem.x += accs.x.clone() * core.fps_ctrl.dt * TARGET_FPS;
-            movem.y += accs.y.clone() * core.fps_ctrl.dt * TARGET_FPS;
-
-            // println!("{} {}", movem.x, movem.y);
-            textect.pos.set_x(movem.x as i32);
-            textect.pos.set_y(movem.y as i32);
-
-            accs.x = 0.0;
-            accs.y = 0.0;
-        }
 
         for tex in render.iter(&world) {
             core.EKRAN.copy(&texture_sprite_sheet, tex.srs, tex.pos).unwrap();
