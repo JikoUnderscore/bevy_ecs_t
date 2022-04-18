@@ -104,8 +104,8 @@ struct Player;
 #[inline(always)]
 fn player_movement(world: &mut World, movement_update: &mut QueryState<(&mut TexRect, &mut Movement, &mut Acceleration)>, fps_dt: f64){
     for (mut textect, mut movem, mut accs) in movement_update.iter_mut(world) {
-        movem.x += accs.x.clone() * fps_dt;
-        movem.y += accs.y.clone() * fps_dt;
+        movem.x += accs.x * fps_dt;
+        movem.y += accs.y * fps_dt;
 
         // println!("{} {}", movem.x, movem.y);
         textect.pos.set_x(movem.x as i32);
@@ -202,9 +202,8 @@ fn main() {
                 Event::KeyDown { scancode, .. } => {
                     match scancode.unwrap() {
                         Scancode::Num1 | Scancode::O => {
-                            for ent in remove_ent.iter(&world) {
+                            if let Some(ent) = remove_ent.iter(&world).next() {
                                 world.despawn(ent);
-                                break;
                             }
                         }
                         Scancode::Num2 | Scancode::P => {
