@@ -1,15 +1,19 @@
 #![allow(non_snake_case)]
 
+mod components;
+
+use std::collections::HashMap;
 use std::f64::consts::FRAC_1_SQRT_2;
 use std::time;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, QueryState, World};
+use bevy_ecs::prelude::{World};
 use sdl2::render::WindowCanvas;
 use sdl2::{Sdl};
 use sdl2::event::Event;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::{Scancode};
-use sdl2::rect::{ Rect};
+use sdl2::rect::{Rect};
+use crate::components::{Acceleration, Bandit, Movement, MoveMove, Player, TexRect};
 
 
 pub struct Renderer {
@@ -98,52 +102,7 @@ impl FpsCapDeltaTime {
     }
 }
 
-#[derive(Component)]
-struct Player;
 
-#[inline(always)]
-fn player_movement(world: &mut World, movement_update: &mut QueryState<(&mut TexRect, &mut Movement, &mut Acceleration)>, fps_dt: f64){
-    for (mut textect, mut movem, mut accs) in movement_update.iter_mut(world) {
-        movem.x += accs.x * fps_dt;
-        movem.y += accs.y * fps_dt;
-
-        // println!("{} {}", movem.x, movem.y);
-        textect.pos.set_x(movem.x as i32);
-        textect.pos.set_y(movem.y as i32);
-
-        accs.x = 0.0;
-        accs.y = 0.0;
-    }
-}
-
-#[derive(Component)]
-struct Movement {
-    x: f64,
-    y: f64,
-}
-
-#[derive(Component)]
-struct Acceleration {
-    x: f64,
-    y: f64,
-}
-
-#[derive(Component)]
-struct TexRect {
-    srs: Rect,
-    pos: Rect,
-}
-
-
-macro_rules! new_fish {
-    ($world:expr) => {
-    $world.spawn()
-         .insert(Player {})
-         .insert(Movement { x: SPAWN_X, y: SPAWN_Y })
-         .insert(Acceleration { x: 0.0, y: 0.0 })
-         .insert(TexRect { srs: Rect::new(0, 0, 24, 24), pos: Rect::new(0, 0, 24 * 3, 24 * 3) });
-    };
-}
 
 fn main() {
     let mut core = Renderer::new("a start pathing");
@@ -151,7 +110,7 @@ fn main() {
     let mut event_pump = core.sdl_context.event_pump().unwrap();
 
     let texture_creator = core.EKRAN.texture_creator();
-    let texture_sprite_sheet = texture_creator.load_texture("./assets/fish_idle_0.png").unwrap();
+    let texture_sprite_sheet = texture_creator.load_texture("./assets/sprites.png").unwrap();
 
     const VEL: f64 = 10.0;
     const SPAWN_X: f64 = 1280.0 / 2.0;
@@ -160,13 +119,35 @@ fn main() {
     let mut world = World::new();
 
 
-    new_fish!(world);
+    let player = world.spawn()
+                      .insert(Player {})
+                      .insert(Movement { movetype: MoveMove::Player, x: SPAWN_X, y: SPAWN_Y })
+                      .insert(Acceleration { x: 0.0, y: 0.0 })
+                      .insert(TexRect { srs: Rect::new(24, 16, 24, 24), pos: Rect::new(0, 0, 24 * 3, 24 * 3) })
+                      .id();
+
+
+    for i in 0..9 {
+        world.spawn()
+             .insert(Bandit {})
+             .insert(Movement { movetype: MoveMove::Bandit, x: (i * 60) as f64, y: (i * 60) as f64 })
+             .insert(Acceleration { x: 0.0, y: 0.0 })
+             .insert(TexRect { srs: Rect::new(0, 0, 16, 16), pos: Rect::new(i * 60, i * 60, 16 * 3, 16 * 3) });
+
+    }
+
+
+    let pl = world.get::<Movement>(player).unwrap() as *const Movement;
+
 
     let mut movement_update = world.query::<(&mut TexRect, &mut Movement, &mut Acceleration)>();
-    let mut remove_ent = world.query::<Entity>();
+    // let mut remove_ent = world.query::<Entity>();
     let mut evnent_movement = world.query::<(&mut Acceleration, &Player)>();
     let mut render = world.query::<&TexRect>();
+    // let mut mob_movement = world.query::<(&mut Movement, &Bandit)>();
 
+
+    let mut enable_ai = true;
     let mut is_running = true;
 
 //--------- LOOP
@@ -201,14 +182,18 @@ fn main() {
                 Event::Quit { .. } => { is_running = false; },
                 Event::KeyDown { scancode, .. } => {
                     match scancode.unwrap() {
-                        Scancode::Num1 | Scancode::O => {
-                            if let Some(ent) = remove_ent.iter(&world).next() {
-                                world.despawn(ent);
-                            }
+
+                        Scancode::F1 =>{
+                            enable_ai = !enable_ai;
                         }
-                        Scancode::Num2 | Scancode::P => {
-                            new_fish!(world);
-                        }
+                        // Scancode::Num1 | Scancode::O => {
+                        //     if let Some(ent) = remove_ent.iter(&world).next() {
+                        //         world.despawn(ent);
+                        //     }
+                        // }
+                        // Scancode::Num2 | Scancode::P => {
+                        //     new_fish!(world);
+                        // }
                         _ => {}
                     }
                 }
@@ -216,13 +201,65 @@ fn main() {
             }
         }
 
-        player_movement(&mut world, &mut movement_update, core.fps_ctrl.dt * TARGET_FPS);
+        if enable_ai{
+            let mut dddd = world.query::<(&Movement, &Bandit, Entity)>();
+            let mut dddd1 = world.query::<(&Movement, &Bandit, Entity)>();
+            let mut has = HashMap::new();
+            for (movem1, _, entt1) in dddd.iter(&world) {
+                for (movem2, _, entt2) in dddd1.iter(&world) {
+                    if entt1 != entt2 {
+                        let x = (movem1.x - movem2.x) as f64;
+                        let y = (movem1.y - movem2.y) as f64;
 
+                        let dist = (x * x + y * y).sqrt();
 
-        for tex in render.iter(&world) {
-            core.EKRAN.copy(&texture_sprite_sheet, tex.srs, tex.pos).unwrap();
+                        if dist < (16.0 * 3.0){
+                            let normalized = if dist != 0.0 { (x / dist, y / dist) } else { (x, y) };
+
+                            // mob1.bettween_mob = Some(normalized.0 * 5.0, normalized.1 * 5.0);
+                            // dbg!(normalized);
+                            has.insert(entt1.id(), (normalized.0 * 5.0, normalized.1 * 5.0));
+                            // has.insert(entt2.id(), (-normalized.0 * 5.0, -normalized.1 * 5.0));
+
+                            // self.acceleration.x += normalized.0 * 5.0;
+                            // self.acceleration.y += normalized.1 * 5.0;
+                        }
+                    }
+                }
+            }
+
+            if !has.is_empty() {
+                for (mut acss, _, entt1) in world.query::<(&mut Movement, &Bandit, Entity)>().iter_mut(&mut world) {
+                    if let Some(xy) = has.get(&entt1.id()) {
+                        acss.x += xy.0;
+                        acss.y += xy.1;
+                    }
+
+                }
+            }
         }
 
+
+        for (textrect, mut movem, accs) in movement_update.iter_mut(&mut world) {
+            match movem.movetype {
+                MoveMove::Player => movem.player_movement(textrect, accs, core.fps_ctrl.dt * TARGET_FPS),
+                MoveMove::Bandit => {
+                    if enable_ai{
+                        movem.bandit_movement(textrect, accs, core.fps_ctrl.dt * TARGET_FPS, unsafe{ &*pl });
+                    }
+                },
+            }
+        }
+
+        {
+            let mut render = render.iter(&world).collect::<Vec<_>>();
+            render.sort_by(|a, b| a.pos.center().y().cmp(&b.pos.center().y()));
+            println!("{:?}", render.len());
+
+            for tex in render {
+                core.EKRAN.copy(&texture_sprite_sheet, tex.srs, tex.pos).unwrap();
+            }
+        }
 
         core.EKRAN.present();
         core.fps_ctrl.end();
