@@ -6,30 +6,31 @@ pub struct Player{
 }
 
 
-#[derive(Component)]
-pub struct Bandit{
+#[derive(Component, )]
+pub struct Mob {
 }
 
 
 
 
 
-#[derive(Component, Debug)]
+#[derive(Component, )]
 pub struct Movement{
-    pub movetype: MoveMove,
+    pub movetype: TypeMovement,
     // pub chase: Option<Mut<'m, Movement>>,
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Debug)]
-pub enum MoveMove{
+#[derive()]
+pub enum TypeMovement {
     Player,
-    Bandit,
+    Mob,
 }
 
 
 impl Movement{
+    const VEL: f64 = 5.0;
     pub fn player_movement(&mut self, mut textrect: Mut<TexRect>, mut accs: Mut<Acceleration>, fps_dt: f64) {
         self.x += accs.x * fps_dt;
         self.y += accs.y * fps_dt;
@@ -41,21 +42,22 @@ impl Movement{
         accs.x = 0.0;
         accs.y = 0.0;
     }
+
     pub fn bandit_movement(&mut self, mut textrect: Mut<TexRect>, mut accs: Mut<Acceleration>, fps_dt: f64, pla_pos: &Movement) {
-        let mut dir_x = (pla_pos.x - self.x) as f64;
-        let mut dir_y = (pla_pos.y - self.y) as f64;
+        let mut dir_x = ((pla_pos.x + 8.0*3.0) - self.x) as f64;
+        let mut dir_y = ((pla_pos.y + 8.0*3.0) - self.y) as f64;
 
         let hyp = (dir_x * dir_x + dir_y * dir_y).sqrt();
         dir_x /= hyp;
         dir_y /= hyp;
 
-        accs.x = dir_x * 5.0;
-        accs.y = dir_y * 5.0;
+        let new_vel = if hyp < 200.0 { Self::VEL } else { Self::VEL *0.5 };
+        accs.x = dir_x * new_vel;
+        accs.y = dir_y * new_vel;
 
         self.x += accs.x * fps_dt;
         self.y += accs.y * fps_dt;
 
-        // println!("{} {}", movem.x, movem.y);
         textrect.pos.set_x(self.x as i32);
         textrect.pos.set_y(self.y as i32);
 
@@ -74,7 +76,7 @@ impl Movement{
 
 
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct Acceleration {
     pub x: f64,
     pub y: f64,

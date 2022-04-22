@@ -13,3 +13,7 @@ rand = "0.8.5"
 version = "*"
 default-features = false
 features = ["image", "mixer", "ttf", "gfx"]
+
+
+#[profile.release]
+#debug = true
