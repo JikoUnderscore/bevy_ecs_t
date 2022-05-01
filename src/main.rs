@@ -3,7 +3,7 @@
 mod components;
 mod core;
 
-use std::f64::consts::FRAC_1_SQRT_2;
+use std::f64::consts::{FRAC_1_SQRT_2};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{World};
 use rand::Rng;
@@ -16,7 +16,7 @@ use crate::core::{Renderer, spawn_mob, TARGET_FPS};
 
 
 fn main() {
-    let mut core = Renderer::new("a start pathing");
+    let mut core = Renderer::new("Bevy ECS TEST");
 
     let mut event_pump = core.sdl_context.event_pump().unwrap();
 
@@ -29,8 +29,6 @@ fn main() {
 
     let mut world = World::new();
 
-
-
     let player = world.spawn()
                       .insert(Player {})
                       .insert(Movement { movetype: TypeMovement::Player, x: SPAWN_X, y: SPAWN_Y })
@@ -38,8 +36,7 @@ fn main() {
                       .insert(TexRect { srs: Rect::new(16, 16, 16, 17), pos: Rect::new(0, 0, 16 * 3, 17 * 3) })
                       .id();
 
-
-    for i in 0..10 {
+    for i in 0..5 {
         spawn_mob(&mut world, i);
     }
 
@@ -56,7 +53,9 @@ fn main() {
     let mut timmer = 0.0;
     let mut timmer_max = 10.0;
 
-    let mut enable_ai = true;
+    let mut mouse_pos = (0, 0);
+
+    let mut enable_ai = false;
     let mut is_running = true;
 //--------- LOOP
     while is_running {
@@ -76,45 +75,68 @@ fn main() {
             }
             timmer = 0.0;
         }
-        let keyb = event_pump.keyboard_state();
-        for (mut acceleration, _) in evnent_movement.iter_mut(&mut world) {
-            if keyb.is_scancode_pressed(Scancode::A) {
-                acceleration.x -= VEL;
-            }
-            if keyb.is_scancode_pressed(Scancode::D) {
-                acceleration.x += VEL;
-            }
-            if keyb.is_scancode_pressed(Scancode::W) {
-                acceleration.y -= VEL;
-            }
-            if keyb.is_scancode_pressed(Scancode::S) {
-                acceleration.y += VEL;
-            }
-
-            if acceleration.x != 0.0 && acceleration.y != 0.0 {
-                acceleration.x *= FRAC_1_SQRT_2;
-                acceleration.y *= FRAC_1_SQRT_2;
-            }
-        }
-
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. } => { is_running = false; },
-                Event::KeyDown { scancode, .. } => {
-                    match scancode.unwrap() {
-                        Scancode::F1 => {
-                            enable_ai = !enable_ai;
-                        }
-                        _ => {}
-                    }
+//--------- EVENT
+        {
+            let keyb = event_pump.keyboard_state();
+            for (mut acceleration, _) in evnent_movement.iter_mut(&mut world) {
+                if keyb.is_scancode_pressed(Scancode::A) {
+                    acceleration.x -= VEL;
                 }
-                _ => {}
+                if keyb.is_scancode_pressed(Scancode::D) {
+                    acceleration.x += VEL;
+                }
+                if keyb.is_scancode_pressed(Scancode::W) {
+                    acceleration.y -= VEL;
+                }
+                if keyb.is_scancode_pressed(Scancode::S) {
+                    acceleration.y += VEL;
+                }
+
+                if acceleration.x != 0.0 && acceleration.y != 0.0 {
+                    acceleration.x *= FRAC_1_SQRT_2;
+                    acceleration.y *= FRAC_1_SQRT_2;
+                }
+            }
+
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. } => { is_running = false; },
+                    Event::MouseButtonDown { x, y, .. } => {
+                        mouse_pos = (x, y);
+                    },
+                    Event::KeyDown { scancode, .. } => {
+                        match scancode.unwrap() {
+                            Scancode::F1 => {
+                                enable_ai = !enable_ai;
+                            }
+                            _ => {}
+                        }
+                    },
+                    _ => {}
+                }
             }
         }
-
+//--------- UPDATE
         if enable_ai {
             unsafe {
                 for (mut movem1, _, entt1) in mob_movement_mut.iter_unchecked(&world) {
+                    /*
+                    // let mut movem1 = Arc::new(Mutex::new(movem1));
+                    // mob_movement.par_for_each(&world, &tp, 600, |(movem2, _, entt2)|{
+                    //     if entt1 != entt2 {
+                    //         let mut lmovem = movem1.lock().unwrap();
+                    //         let x = (lmovem.x - movem2.x) as f64;
+                    //         let y = (lmovem.y - movem2.y) as f64;
+                    //         let dist = (x * x + y * y).sqrt();
+                    //         if dist < (16.0 * 3.0) {
+                    //             let normalized = if dist != 0.0 { (x / dist, y / dist) } else { (x, y) };
+                    //             lmovem.x += normalized.0 * 5.0;
+                    //             lmovem.y += normalized.1 * 5.0;
+                    //             std::mem::drop(lmovem);
+                    //         }
+                    //     }
+                    // });
+                    */
                     for (movem2, _, entt2) in mob_movement.iter(&world) {
                         if entt1 != entt2 {
                             let x = (movem1.x - movem2.x) as f64;
@@ -125,8 +147,8 @@ fn main() {
                             if dist < (16.0 * 3.0) {
                                 let normalized = if dist != 0.0 { (x / dist, y / dist) } else { (x, y) };
 
-                                movem1.x += normalized.0 * 5.0;
-                                movem1.y += normalized.1 * 5.0;
+                                movem1.x += normalized.0 * 2.5;
+                                movem1.y += normalized.1 * 2.5;
                                 // movem2.x -= normalized.0 * 5.0;
                                 // movem2.y -= normalized.1 * 5.0;
                             }
@@ -143,15 +165,16 @@ fn main() {
                     TARGET_FPS),
                 TypeMovement::Mob => {
                     if enable_ai {
-                        movem.bandit_movement(textrect, accs, core.fps_ctrl.dt * TARGET_FPS, unsafe { &*player_movem_ptr });
+                        movem.bandit_movement(textrect, accs, core.fps_ctrl.dt * TARGET_FPS, player_movem_ptr);
                     }
                 },
             }
         }
 
+//--------- RENDER
         {
             let mut render = render.iter(&world).collect::<Vec<_>>();
-            render.sort_by(|a, b| a.pos.center().y().cmp(&b.pos.center().y()));
+            render.sort_unstable_by(|a, b| a.pos.center().y().cmp(&b.pos.center().y()));
 
             for tex in render {
                 core.EKRAN.copy(&texture_sprite_sheet, tex.srs, tex.pos).unwrap();

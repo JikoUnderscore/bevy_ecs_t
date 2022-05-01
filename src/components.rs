@@ -35,7 +35,7 @@ impl Movement{
         self.x += accs.x * fps_dt;
         self.y += accs.y * fps_dt;
 
-        // println!("{} {}", movem.x, movem.y);
+        // println!("{:?}", textrect.pos);
         textrect.pos.set_x(self.x as i32);
         textrect.pos.set_y(self.y as i32);
 
@@ -43,9 +43,9 @@ impl Movement{
         accs.y = 0.0;
     }
 
-    pub fn bandit_movement(&mut self, mut textrect: Mut<TexRect>, mut accs: Mut<Acceleration>, fps_dt: f64, pla_pos: &Movement) {
-        let mut dir_x = ((pla_pos.x + 8.0*3.0) - self.x) as f64;
-        let mut dir_y = ((pla_pos.y + 8.0*3.0) - self.y) as f64;
+    pub fn bandit_movement(&mut self, mut textrect: Mut<TexRect>, mut accs: Mut<Acceleration>, fps_dt: f64, pla_pos: *const Movement) {
+        let mut dir_x = unsafe { (((*pla_pos).x) - self.x) as f64 };
+        let mut dir_y = unsafe { (((*pla_pos).y) - self.y) as f64 };
 
         let hyp = (dir_x * dir_x + dir_y * dir_y).sqrt();
         dir_x /= hyp;
